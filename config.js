@@ -9,7 +9,7 @@ const CONFIG = {
   API_KEY: "AIzaSyBxmHrrGOA_TseA3OtthWtXkjsda_vVtfQ",
 
   // ID folder Google Drive yang berisi video-video
-  FOLDER_ID: "1Zz47e3-ewXqt1y3qvEgBQWnug1LLt2fA",
+  FOLDER_ID: "1uXPiDOxSF2VWF20QQnnAmHXSxp6iaNdm",
 
   // Jumlah video yang diambil per load
   PAGE_SIZE: 10,
