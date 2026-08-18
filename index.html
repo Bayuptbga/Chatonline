@@ -2,25 +2,27 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>DriveTok</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
+  
   html, body {
     height: 100%;
     background: #000;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
   }
-
+  
   #feed {
     height: 100vh;
     height: 100dvh;
     overflow-y: scroll;
     scroll-snap-type: y mandatory;
     scroll-behavior: smooth;
+    scrollbar-width: none; /* Firefox */
   }
+  #feed::-webkit-scrollbar { display: none; } /* Chrome */
 
   .video-slide {
     position: relative;
@@ -34,11 +36,11 @@
     justify-content: center;
     background: #000;
   }
-
+  
   .video-slide video {
     height: 100%;
     width: 100%;
-    object-fit: contain;
+    object-fit: cover; /* Biar video memenuhi layar ala TikTok */
     background: #000;
   }
 
@@ -46,50 +48,80 @@
     position: absolute;
     bottom: 0;
     left: 0;
-    right: 0;
-    padding: 16px 70px 24px 16px;
+    width: 100%;
+    padding: 20px 80px 20px 20px;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
     color: #fff;
-    background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+    z-index: 3;
     pointer-events: none;
   }
-
-  .overlay .filename {
-    font-weight: 600;
-    font-size: 15px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  
+  .video-info { margin-bottom: 20px; }
+  .video-info h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .video-info p {
+    font-size: 14px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .side-actions {
     position: absolute;
     right: 12px;
-    bottom: 90px;
+    bottom: 40px;
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    align-items: center;
-    z-index: 5;
+    gap: 20px;
+    z-index: 4;
   }
-
+  
   .action-btn {
-    background: rgba(0,0,0,0.35);
+    background: transparent;
+    color: white;
     border: none;
-    color: #fff;
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
+    font-size: 32px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
     cursor: pointer;
-    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.2s;
+    gap: 4px;
   }
-  .action-btn.liked { color: #fe2c55; }
+  .action-btn span {
+    font-size: 12px;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  }
+  .action-btn:active { transform: scale(0.9); }
+  .liked { color: #fe2c55; }
 
-  .tap-zone {
+  .tap-zone { position: absolute; inset: 0; z-index: 2; }
+
+  /* Animasi Love pas Double Tap */
+  .heart-pop {
     position: absolute;
-    inset: 0;
-    z-index: 2;
+    color: #fe2c55;
+    font-size: 80px;
+    opacity: 0;
+    transform: scale(0) rotate(-15deg);
+    pointer-events: none;
+    z-index: 10;
+    transition: all 0.5s ease-out;
+  }
+  .heart-pop.animate {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  .heart-pop.fade {
+    opacity: 0;
+    transform: scale(1.5) translateY(-50px);
   }
 
   #topbar {
@@ -106,7 +138,7 @@
     text-shadow: 0 1px 4px rgba(0,0,0,0.6);
     pointer-events: none;
   }
-
+  
   #status {
     position: fixed;
     inset: 0;
@@ -119,11 +151,10 @@
     font-size: 15px;
     line-height: 1.6;
     z-index: 20;
-    background: #000;
+    background: rgba(0,0,0,0.8);
   }
-  #status a { color: #4da3ff; }
   #status.hidden { display: none; }
-
+  
   .spinner {
     width: 34px;
     height: 34px;
@@ -159,7 +190,7 @@
   let loading = false;
   let allLoaded = false;
   const likedSet = new Set();
-  let folderQueryClause = null; // diisi setelah subfolder ditelusuri
+  let folderQueryClause = null;
 
   function showStatus(html) {
     statusEl.classList.remove('hidden');
@@ -169,32 +200,24 @@
     statusEl.classList.add('hidden');
   }
 
-  // Menelusuri semua subfolder (rekursif, BFS) di dalam folder utama,
-  // supaya video di dalam subfolder ikut terdeteksi.
   async function discoverAllFolderIds(rootId) {
     const allIds = [rootId];
     const queue = [rootId];
-    const MAX_FOLDERS = 300; // pengaman biar tidak infinite loop di struktur besar
-
+    const MAX_FOLDERS = 300; 
     while (queue.length > 0 && allIds.length < MAX_FOLDERS) {
       const currentId = queue.shift();
       let pageToken = null;
-
       do {
         const params = new URLSearchParams({
           q: `'${currentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
           fields: 'nextPageToken, files(id)',
           pageSize: '100',
           key: CONFIG.API_KEY,
-          supportsAllDrives: 'true',
-          includeItemsFromAllDrives: 'true',
         });
         if (pageToken) params.set('pageToken', pageToken);
-
         const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error.message || 'Gagal menelusuri subfolder');
-
         (data.files || []).forEach((f) => {
           allIds.push(f.id);
           queue.push(f.id);
@@ -202,15 +225,13 @@
         pageToken = data.nextPageToken || null;
       } while (pageToken);
     }
-
     return allIds;
   }
 
   async function fetchVideoList() {
     if (loading || allLoaded) return;
     loading = true;
-
-    // Tahap pertama: temukan semua folder (folder utama + semua subfolder)
+    
     if (!folderQueryClause) {
       try {
         showStatus('Menelusuri folder & subfolder...');
@@ -228,165 +249,25 @@
       fields: 'nextPageToken, files(id, name, mimeType)',
       pageSize: String(CONFIG.PAGE_SIZE),
       key: CONFIG.API_KEY,
-      supportsAllDrives: 'true',
-      includeItemsFromAllDrives: 'true',
     });
     if (nextPageToken) params.set('pageToken', nextPageToken);
 
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
       const data = await res.json();
-
-      if (data.error) {
-        showStatus(
-          `⚠️ Gagal mengambil video dari Google Drive.<br><br>` +
-          `<b>${data.error.message || 'Unknown error'}</b><br><br>` +
-          `Periksa kembali API_KEY dan FOLDER_ID di config.js, ` +
-          `pastikan folder di-share "Anyone with the link", dan ` +
-          `Google Drive API sudah diaktifkan di Google Cloud Console.`
-        );
-        loading = false;
-        return;
-      }
+      
+      if (data.error) throw new Error(data.error.message);
 
       const files = data.files || [];
       nextPageToken = data.nextPageToken || null;
       if (!nextPageToken) allLoaded = true;
 
-      if (files.length === 0 && feedEl.children.length === 0) {
-        await runDiagnostics();
-      } else {
-        hideStatus();
-        files.forEach(renderSlide);
-      }
+      hideStatus();
+      files.forEach(renderSlide);
     } catch (err) {
-      showStatus(`⚠️ Terjadi kesalahan jaringan.<br><br>${err.message}`);
+      showStatus(`⚠️ Terjadi kesalahan.<br><br>${err.message}`);
     }
-
     loading = false;
-  }
-
-  async function runDiagnostics() {
-    try {
-      // Ambil SEMUA file (tanpa filter mimeType video) di folder-folder yang ditemukan,
-      // supaya kita tahu apakah masalahnya folder kosong, atau ada file tapi tipenya
-      // tidak dikenali sebagai video.
-      const params = new URLSearchParams({
-        q: `${folderQueryClause} and trashed = false`,
-        fields: 'files(id, name, mimeType)',
-        pageSize: '50',
-        key: CONFIG.API_KEY,
-        supportsAllDrives: 'true',
-        includeItemsFromAllDrives: 'true',
-      });
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
-      const data = await res.json();
-
-      const folderCount = folderQueryClause.split(' or ').length;
-
-      if (data.error) {
-        showStatus(
-          `⚠️ Berhasil menelusuri ${folderCount} folder, tapi query file gagal:<br><br>` +
-          `<b>${data.error.message}</b>`
-        );
-        return;
-      }
-
-      const allFiles = data.files || [];
-
-      if (allFiles.length === 0) {
-        showStatus(
-          `🔍 <b>Diagnostik:</b><br><br>` +
-          `Ditemukan <b>${folderCount}</b> folder (termasuk folder utama + subfolder).<br>` +
-          `Tapi tidak ada file sama sekali di dalamnya yang terlihat oleh API.<br><br>` +
-          `Kemungkinan penyebab:<br>` +
-          `• Folder utama sudah "Anyone with the link", tapi subfolder-nya punya permission ` +
-          `terpisah (tidak ikut ter-share). Coba klik kanan folder utama → Share → pastikan ` +
-          `"Anyone with the link" mencakup subfolder juga.<br>` +
-          `• Video ada di folder yang BUKAN bagian dari folder ini (folder ID salah).<br>` +
-          `• Kalau ini folder di dalam <b>Shared Drive</b> (Team Drive), API perlu setting tambahan — ` +
-          `beri tahu saya kalau ini kasusnya.`
-        );
-      } else {
-        const mimeCounts = {};
-        allFiles.forEach((f) => {
-          mimeCounts[f.mimeType] = (mimeCounts[f.mimeType] || 0) + 1;
-        });
-        const mimeList = Object.entries(mimeCounts)
-          .map(([m, c]) => `${escapeHtml(m)} × ${c}`)
-          .join('<br>');
-        const sampleNames = allFiles.slice(0, 5).map((f) => escapeHtml(f.name)).join('<br>');
-
-        showStatus(
-          `🔍 <b>Diagnostik:</b><br><br>` +
-          `Ditemukan <b>${folderCount}</b> folder, dan <b>${allFiles.length}</b> file di dalamnya ` +
-          `(tipe apa saja), tapi tidak ada yang terdeteksi API sebagai video (mimeType video/...).<br><br>` +
-          `<b>Tipe file yang ditemukan:</b><br>${mimeList}<br><br>` +
-          `<b>Contoh nama file:</b><br>${sampleNames}<br><br>` +
-          `Kalau file kamu memang video tapi mimeType-nya bukan "video/...", ` +
-          `kemungkinan formatnya tidak dikenali Google Drive. Beri tahu saya tipe file di atas ` +
-          `supaya saya sesuaikan filter-nya.`
-        );
-      }
-    } catch (err) {
-      showStatus(`⚠️ Diagnostik gagal jalan: ${err.message}`);
-    }
-  }
-
-  function renderSlide(file) {
-    const slide = document.createElement('div');
-    slide.className = 'video-slide';
-    slide.dataset.fileId = file.id;
-
-    // Streaming langsung via Drive (cocok untuk file < ~100MB tanpa warning "scan virus")
-    const src = `https://drive.google.com/uc?export=download&id=${file.id}`;
-
-    slide.innerHTML = `
-      <video src="${src}" loop muted playsinline preload="metadata"></video>
-      <div class="tap-zone"></div>
-      <div class="side-actions">
-        <button class="action-btn like-btn">❤️</button>
-        <button class="action-btn mute-btn">🔇</button>
-      </div>
-      <div class="overlay">
-        <div class="filename">${escapeHtml(file.name)}</div>
-      </div>
-    `;
-
-    const video = slide.querySelector('video');
-    const tapZone = slide.querySelector('.tap-zone');
-    const likeBtn = slide.querySelector('.like-btn');
-    const muteBtn = slide.querySelector('.mute-btn');
-
-    tapZone.addEventListener('click', () => {
-      video.paused ? video.play() : video.pause();
-    });
-
-    likeBtn.addEventListener('click', () => {
-      const isLiked = likedSet.has(file.id);
-      if (isLiked) { likedSet.delete(file.id); likeBtn.classList.remove('liked'); }
-      else { likedSet.add(file.id); likeBtn.classList.add('liked'); }
-      // Catatan: like ini hanya di memori browser (tidak permanen).
-      // Untuk menyimpan permanen butuh backend seperti Firebase/Supabase.
-    });
-
-    muteBtn.addEventListener('click', () => {
-      video.muted = !video.muted;
-      muteBtn.textContent = video.muted ? '🔇' : '🔊';
-    });
-
-    // Video fallback: kalau gagal load (misal file besar kena "virus scan warning"),
-    // ganti otomatis ke iframe embed preview
-    video.addEventListener('error', () => {
-      slide.innerHTML = `
-        <iframe src="https://drive.google.com/file/d/${file.id}/preview"
-          style="width:100%;height:100%;border:0;" allow="autoplay"></iframe>
-        <div class="overlay"><div class="filename">${escapeHtml(file.name)}</div></div>
-      `;
-    });
-
-    feedEl.appendChild(slide);
-    observer.observe(slide);
   }
 
   function escapeHtml(str) {
@@ -395,7 +276,115 @@
     return d.innerHTML;
   }
 
-  // Auto play/pause video sesuai yang sedang terlihat di layar (mirip TikTok)
+  function renderSlide(file) {
+    const slide = document.createElement('div');
+    slide.className = 'video-slide';
+    slide.dataset.fileId = file.id;
+
+    const src = `https://drive.google.com/uc?export=download&id=${file.id}`;
+
+    slide.innerHTML = `
+      <video src="${src}" loop muted playsinline preload="metadata"></video>
+      <div class="tap-zone"></div>
+      <div class="heart-pop">❤️</div>
+      
+      <div class="side-actions">
+        <button class="action-btn like-btn">${likedSet.has(file.id) ? '❤️' : '🤍'}<span>Suka</span></button>
+        <button class="action-btn mute-btn">🔇<span>Suara</span></button>
+        <button class="action-btn">↗️<span>Bagikan</span></button>
+      </div>
+      
+      <div class="overlay">
+        <div class="video-info">
+          <h3>@drivetok_user</h3>
+          <p>${escapeHtml(file.name)}</p>
+        </div>
+      </div>
+    `;
+
+    const video = slide.querySelector('video');
+    const tapZone = slide.querySelector('.tap-zone');
+    const likeBtn = slide.querySelector('.like-btn');
+    const muteBtn = slide.querySelector('.mute-btn');
+    const heartPop = slide.querySelector('.heart-pop');
+
+    // Double Tap Logic dengan Animasi
+    let lastTap = 0;
+    tapZone.addEventListener('click', (e) => {
+      const currentTime = new Date().getTime();
+      const tapInterval = currentTime - lastTap;
+      
+      if (tapInterval < 300) {
+        // Double Tap Terdeteksi
+        if (!likedSet.has(file.id)) {
+          likedSet.add(file.id);
+          likeBtn.innerHTML = '❤️<span>Suka</span>';
+          likeBtn.classList.add('liked');
+        }
+        
+        // Animasi Hati Muncul
+        const rect = tapZone.getBoundingClientRect();
+        const x = e.clientX - rect.left - 40; 
+        const y = e.clientY - rect.top - 40;
+        heartPop.style.left = `${x}px`;
+        heartPop.style.top = `${y}px`;
+        
+        heartPop.classList.remove('fade');
+        heartPop.classList.add('animate');
+        
+        setTimeout(() => {
+          heartPop.classList.remove('animate');
+          heartPop.classList.add('fade');
+        }, 500);
+
+      } else {
+        // Single Tap Terdeteksi (Play/Pause)
+        // Gunakan timeout untuk mencegah pause kalau user ternyata double tap
+        setTimeout(() => {
+          if (currentTime === lastTap) { 
+            video.paused ? video.play() : video.pause();
+          }
+        }, 300);
+      }
+      lastTap = currentTime;
+    });
+
+    likeBtn.addEventListener('click', () => {
+      const isLiked = likedSet.has(file.id);
+      if (isLiked) { 
+        likedSet.delete(file.id); 
+        likeBtn.innerHTML = '🤍<span>Suka</span>';
+        likeBtn.classList.remove('liked'); 
+      } else { 
+        likedSet.add(file.id); 
+        likeBtn.innerHTML = '❤️<span>Suka</span>';
+        likeBtn.classList.add('liked'); 
+      }
+    });
+
+    muteBtn.addEventListener('click', () => {
+      video.muted = !video.muted;
+      muteBtn.innerHTML = video.muted ? '🔇<span>Bisu</span>' : '🔊<span>Suara</span>';
+    });
+
+    // Fallback kalau video ditolak API Gdrive
+    video.addEventListener('error', () => {
+      slide.innerHTML = `
+        <iframe src="https://drive.google.com/file/d/${file.id}/preview"
+          style="width:100%;height:100%;border:0;" allow="autoplay"></iframe>
+        <div class="overlay">
+          <div class="video-info">
+            <h3>@drivetok_user</h3>
+            <p>${escapeHtml(file.name)}</p>
+          </div>
+        </div>
+      `;
+    });
+
+    feedEl.appendChild(slide);
+    observer.observe(slide);
+  }
+
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
       const video = entry.target.querySelector('video');
@@ -407,7 +396,6 @@
       }
     });
 
-    // Infinite scroll: load halaman berikutnya saat mendekati akhir feed
     const slides = feedEl.children;
     if (slides.length > 0) {
       const lastSlide = slides[slides.length - 1];
@@ -418,14 +406,10 @@
     }
   }, { threshold: [0, 0.6, 1] });
 
-  // Validasi config dasar sebelum mulai
+  // Pengecekan Config
   if (!CONFIG.API_KEY || CONFIG.API_KEY.startsWith('ISI_') ||
       !CONFIG.FOLDER_ID || CONFIG.FOLDER_ID.startsWith('ISI_')) {
-    showStatus(
-      `⚙️ Konfigurasi belum diisi.<br><br>` +
-      `Buka file <b>config.js</b> dan isi <b>API_KEY</b> serta <b>FOLDER_ID</b> ` +
-      `sesuai instruksi di README.md.`
-    );
+    showStatus('⚙️ Konfigurasi belum diisi. Periksa config.js');
   } else {
     fetchVideoList();
   }
