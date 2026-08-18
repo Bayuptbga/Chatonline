@@ -200,7 +200,6 @@
   let allLoaded = false;
   const likedSet = new Set();
   
-  // State baru untuk menangani multiple folder
   let folderIds = [];
   let currentFolderIndex = 0;
   let currentNextPageToken = null;
@@ -242,12 +241,10 @@
     return allIds;
   }
 
-  // LOGIKA BARU: Fetching berantai agar API Drive tidak menolak kueri
   async function fetchVideoList() {
     if (loading || allLoaded) return;
     loading = true;
     
-    // Tahap 1: Kumpulkan semua ID Folder (Hanya jalan sekali di awal)
     if (!foldersDiscovered) {
       try {
         showStatus('Menelusuri folder & subfolder...');
@@ -262,8 +259,6 @@
 
     let videosFetched = [];
 
-    // Tahap 2: Loop per folder secara berurutan
-    // Akan terus mencari sampai batas PAGE_SIZE terpenuhi atau folder habis
     while (videosFetched.length < CONFIG.PAGE_SIZE && currentFolderIndex < folderIds.length) {
       const currentFolderId = folderIds[currentFolderIndex];
       const fetchLimit = CONFIG.PAGE_SIZE - videosFetched.length;
@@ -287,28 +282,24 @@
         videosFetched = videosFetched.concat(files);
         currentNextPageToken = data.nextPageToken || null;
 
-        // Kalau token habis (video di folder ini sudah ditarik semua), pindah ke folder selanjutnya
         if (!currentNextPageToken) {
           currentFolderIndex++;
         }
       } catch (err) {
         console.error("Folder dilewati karena error:", currentFolderId, err);
-        // Kalau 1 folder bermasalah (misal lupa disetting public), skip ke folder berikutnya
         currentFolderIndex++;
         currentNextPageToken = null;
       }
     }
 
-    // Jika index sudah melewati batas array folder dan token tidak ada lagi
     if (currentFolderIndex >= folderIds.length && !currentNextPageToken) {
       allLoaded = true;
     }
 
-    // Eksekusi Tampilan
     if (videosFetched.length > 0) {
       hideStatus();
       videosFetched.forEach(renderSlide);
-    } else if (feedEl.children.length === 0) {
+    } else if (feedEl.children.length === 0 && allLoaded) {
       showStatus('⚠️ Tidak ada video yang ditemukan di folder utama maupun subfolder.<br><br>Pastikan subfolder sudah dibagikan (Anyone with the link).');
     }
 
@@ -326,8 +317,8 @@
     slide.className = 'video-slide';
     slide.dataset.fileId = file.id;
 
-    // Direct Stream API URL
-    const src = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${CONFIG.API_KEY}`;
+    // KEMBALI KE EXPORT DOWNLOAD: Mengatasi error API alt=media yang sering memicu 403 / CORS
+    const src = `https://drive.google.com/uc?export=download&id=${file.id}`;
 
     slide.innerHTML = `
       <video src="${src}" loop muted playsinline preload="metadata"></video>
@@ -412,7 +403,7 @@
        console.error("Gagal memuat video:", file.name);
        tapZone.innerHTML = `
          <div class="error-msg">
-            ⚠️ Gagal memutar video.<br><br>API Gagal merespons atau format tidak didukung.
+            ⚠️ Gagal memutar video.<br><br>Pastikan file berformat MP4 dan link Google Drive sudah diatur "Anyone with the link".
          </div>
        `;
     });
