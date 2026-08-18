@@ -20,9 +20,9 @@
     overflow-y: scroll;
     scroll-snap-type: y mandatory;
     scroll-behavior: smooth;
-    scrollbar-width: none; /* Firefox */
+    scrollbar-width: none;
   }
-  #feed::-webkit-scrollbar { display: none; } /* Chrome */
+  #feed::-webkit-scrollbar { display: none; }
 
   .video-slide {
     position: relative;
@@ -37,7 +37,6 @@
     background: #000;
   }
   
-  /* Tidak menggunakan controls, murni kustom UI */
   .video-slide video {
     height: 100%;
     width: 100%;
@@ -105,7 +104,6 @@
 
   .tap-zone { position: absolute; inset: 0; z-index: 2; cursor: pointer; }
 
-  /* Animasi Love pas Double Tap */
   .heart-pop {
     position: absolute;
     color: #fe2c55;
@@ -198,11 +196,15 @@
   const statusEl = document.getElementById('status');
   const statusText = document.getElementById('status-text');
 
-  let nextPageToken = null;
   let loading = false;
   let allLoaded = false;
   const likedSet = new Set();
-  let folderQueryClause = null;
+  
+  // State baru untuk menangani multiple folder
+  let folderIds = [];
+  let currentFolderIndex = 0;
+  let currentNextPageToken = null;
+  let foldersDiscovered = false;
 
   function showStatus(html) {
     statusEl.classList.remove('hidden');
@@ -240,15 +242,17 @@
     return allIds;
   }
 
+  // LOGIKA BARU: Fetching berantai agar API Drive tidak menolak kueri
   async function fetchVideoList() {
     if (loading || allLoaded) return;
     loading = true;
     
-    if (!folderQueryClause) {
+    // Tahap 1: Kumpulkan semua ID Folder (Hanya jalan sekali di awal)
+    if (!foldersDiscovered) {
       try {
         showStatus('Menelusuri folder & subfolder...');
-        const folderIds = await discoverAllFolderIds(CONFIG.FOLDER_ID);
-        folderQueryClause = '(' + folderIds.map((id) => `'${id}' in parents`).join(' or ') + ')';
+        folderIds = await discoverAllFolderIds(CONFIG.FOLDER_ID);
+        foldersDiscovered = true;
       } catch (err) {
         showStatus(`⚠️ Gagal menelusuri subfolder.<br><br>${err.message}`);
         loading = false;
@@ -256,29 +260,58 @@
       }
     }
 
-    const params = new URLSearchParams({
-      q: `${folderQueryClause} and mimeType contains 'video/' and trashed = false`,
-      fields: 'nextPageToken, files(id, name, mimeType)',
-      pageSize: String(CONFIG.PAGE_SIZE),
-      key: CONFIG.API_KEY,
-    });
-    if (nextPageToken) params.set('pageToken', nextPageToken);
+    let videosFetched = [];
 
-    try {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
-      const data = await res.json();
+    // Tahap 2: Loop per folder secara berurutan
+    // Akan terus mencari sampai batas PAGE_SIZE terpenuhi atau folder habis
+    while (videosFetched.length < CONFIG.PAGE_SIZE && currentFolderIndex < folderIds.length) {
+      const currentFolderId = folderIds[currentFolderIndex];
+      const fetchLimit = CONFIG.PAGE_SIZE - videosFetched.length;
+
+      const params = new URLSearchParams({
+        q: `'${currentFolderId}' in parents and mimeType contains 'video/' and trashed = false`,
+        fields: 'nextPageToken, files(id, name, mimeType)',
+        pageSize: String(fetchLimit),
+        key: CONFIG.API_KEY,
+      });
       
-      if (data.error) throw new Error(data.error.message);
+      if (currentNextPageToken) params.set('pageToken', currentNextPageToken);
 
-      const files = data.files || [];
-      nextPageToken = data.nextPageToken || null;
-      if (!nextPageToken) allLoaded = true;
+      try {
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+        const data = await res.json();
+        
+        if (data.error) throw new Error(data.error.message);
 
-      hideStatus();
-      files.forEach(renderSlide);
-    } catch (err) {
-      showStatus(`⚠️ Terjadi kesalahan.<br><br>${err.message}`);
+        const files = data.files || [];
+        videosFetched = videosFetched.concat(files);
+        currentNextPageToken = data.nextPageToken || null;
+
+        // Kalau token habis (video di folder ini sudah ditarik semua), pindah ke folder selanjutnya
+        if (!currentNextPageToken) {
+          currentFolderIndex++;
+        }
+      } catch (err) {
+        console.error("Folder dilewati karena error:", currentFolderId, err);
+        // Kalau 1 folder bermasalah (misal lupa disetting public), skip ke folder berikutnya
+        currentFolderIndex++;
+        currentNextPageToken = null;
+      }
     }
+
+    // Jika index sudah melewati batas array folder dan token tidak ada lagi
+    if (currentFolderIndex >= folderIds.length && !currentNextPageToken) {
+      allLoaded = true;
+    }
+
+    // Eksekusi Tampilan
+    if (videosFetched.length > 0) {
+      hideStatus();
+      videosFetched.forEach(renderSlide);
+    } else if (feedEl.children.length === 0) {
+      showStatus('⚠️ Tidak ada video yang ditemukan di folder utama maupun subfolder.<br><br>Pastikan subfolder sudah dibagikan (Anyone with the link).');
+    }
+
     loading = false;
   }
 
@@ -293,8 +326,7 @@
     slide.className = 'video-slide';
     slide.dataset.fileId = file.id;
 
-    // KUNCI UTAMA: Menggunakan API path dengan alt=media
-    // Ini mengabaikan peringatan ukuran file dan langsung memuat raw video stream
+    // Direct Stream API URL
     const src = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${CONFIG.API_KEY}`;
 
     slide.innerHTML = `
@@ -322,21 +354,18 @@
     const muteBtn = slide.querySelector('.mute-btn');
     const heartPop = slide.querySelector('.heart-pop');
 
-    // LOGIKA DOUBLE TAP (Sekarang 100% aman karena tidak ada Iframe yang menghalangi)
     let lastTap = 0;
     tapZone.addEventListener('click', (e) => {
       const currentTime = new Date().getTime();
       const tapInterval = currentTime - lastTap;
       
       if (tapInterval < 300) {
-        // Double Tap Terdeteksi
         if (!likedSet.has(file.id)) {
           likedSet.add(file.id);
           likeBtn.innerHTML = '❤️<span>Suka</span>';
           likeBtn.classList.add('liked');
         }
         
-        // Munculkan Animasi Hati
         const rect = tapZone.getBoundingClientRect();
         const x = e.clientX - rect.left - 40; 
         const y = e.clientY - rect.top - 40;
@@ -352,7 +381,6 @@
         }, 500);
 
       } else {
-        // Single Tap Terdeteksi (Play/Pause)
         setTimeout(() => {
           if (currentTime === lastTap) { 
             video.paused ? video.play() : video.pause();
@@ -380,10 +408,8 @@
       muteBtn.innerHTML = video.muted ? '🔇<span>Bisu</span>' : '🔊<span>Suara</span>';
     });
 
-    // Error handling murni (Bukan Iframe)
     video.addEventListener('error', () => {
        console.error("Gagal memuat video:", file.name);
-       // Tampilkan pesan error di dalam tap-zone agar UI tidak rusak
        tapZone.innerHTML = `
          <div class="error-msg">
             ⚠️ Gagal memutar video.<br><br>API Gagal merespons atau format tidak didukung.
@@ -416,7 +442,6 @@
     }
   }, { threshold: [0, 0.6, 1] });
 
-  // Pengecekan Config
   if (!CONFIG.API_KEY || CONFIG.API_KEY.startsWith('ISI_') ||
       !CONFIG.FOLDER_ID || CONFIG.FOLDER_ID.startsWith('ISI_')) {
     showStatus('⚙️ Konfigurasi belum diisi. Periksa config.js');
