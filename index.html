@@ -186,6 +186,8 @@
           fields: 'nextPageToken, files(id)',
           pageSize: '100',
           key: CONFIG.API_KEY,
+          supportsAllDrives: 'true',
+          includeItemsFromAllDrives: 'true',
         });
         if (pageToken) params.set('pageToken', pageToken);
 
@@ -223,9 +225,11 @@
 
     const params = new URLSearchParams({
       q: `${folderQueryClause} and mimeType contains 'video/' and trashed = false`,
-      fields: 'nextPageToken, files(id, name, mimeType, videoMediaMetadata)',
+      fields: 'nextPageToken, files(id, name, mimeType)',
       pageSize: String(CONFIG.PAGE_SIZE),
       key: CONFIG.API_KEY,
+      supportsAllDrives: 'true',
+      includeItemsFromAllDrives: 'true',
     });
     if (nextPageToken) params.set('pageToken', nextPageToken);
 
@@ -272,6 +276,8 @@
         fields: 'files(id, name, mimeType)',
         pageSize: '50',
         key: CONFIG.API_KEY,
+        supportsAllDrives: 'true',
+        includeItemsFromAllDrives: 'true',
       });
       const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
       const data = await res.json();
