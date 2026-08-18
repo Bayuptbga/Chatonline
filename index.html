@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>DriveTok</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+  }
+
+  #feed {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+  }
+
+  .video-slide {
+    position: relative;
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+
+  .video-slide video {
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+    background: #000;
+  }
+
+  .overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 70px 24px 16px;
+    color: #fff;
+    background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+    pointer-events: none;
+  }
+
+  .overlay .filename {
+    font-weight: 600;
+    font-size: 15px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+
+  .side-actions {
+    position: absolute;
+    right: 12px;
+    bottom: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    align-items: center;
+    z-index: 5;
+  }
+
+  .action-btn {
+    background: rgba(0,0,0,0.35);
+    border: none;
+    color: #fff;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+  }
+  .action-btn.liked { color: #fe2c55; }
+
+  .tap-zone {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+
+  #topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 14px 16px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    text-align: center;
+    z-index: 10;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+
+  #status {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    text-align: center;
+    padding: 24px;
+    font-size: 15px;
+    line-height: 1.6;
+    z-index: 20;
+    background: #000;
+  }
+  #status a { color: #4da3ff; }
+  #status.hidden { display: none; }
+
+  .spinner {
+    width: 34px;
+    height: 34px;
+    border: 3px solid rgba(255,255,255,0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 14px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="topbar">DriveTok</div>
+<div id="feed"></div>
+
+<div id="status">
+  <div>
+    <div class="spinner"></div>
+    <div id="status-text">Memuat video...</div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+(function () {
+  const feedEl = document.getElementById('feed');
+  const statusEl = document.getElementById('status');
+  const statusText = document.getElementById('status-text');
+
+  let nextPageToken = null;
+  let loading = false;
+  let allLoaded = false;
+  const likedSet = new Set();
+
+  function showStatus(html) {
+    statusEl.classList.remove('hidden');
+    statusText.innerHTML = html;
+  }
+  function hideStatus() {
+    statusEl.classList.add('hidden');
+  }
+
+  async function fetchVideoList() {
+    if (loading || allLoaded) return;
+    loading = true;
+
+    const params = new URLSearchParams({
+      q: `'${CONFIG.FOLDER_ID}' in parents and mimeType contains 'video/' and trashed = false`,
+      fields: 'nextPageToken, files(id, name, mimeType, videoMediaMetadata)',
+      pageSize: String(CONFIG.PAGE_SIZE),
+      key: CONFIG.API_KEY,
+    });
+    if (nextPageToken) params.set('pageToken', nextPageToken);
+
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+      const data = await res.json();
+
+      if (data.error) {
+        showStatus(
+          `⚠️ Gagal mengambil video dari Google Drive.<br><br>` +
+          `<b>${data.error.message || 'Unknown error'}</b><br><br>` +
+          `Periksa kembali API_KEY dan FOLDER_ID di config.js, ` +
+          `pastikan folder di-share "Anyone with the link", dan ` +
+          `Google Drive API sudah diaktifkan di Google Cloud Console.`
+        );
+        loading = false;
+        return;
+      }
+
+      const files = data.files || [];
+      nextPageToken = data.nextPageToken || null;
+      if (!nextPageToken) allLoaded = true;
+
+      if (files.length === 0 && feedEl.children.length === 0) {
+        showStatus('Belum ada video di folder ini.');
+      } else {
+        hideStatus();
+        files.forEach(renderSlide);
+      }
+    } catch (err) {
+      showStatus(`⚠️ Terjadi kesalahan jaringan.<br><br>${err.message}`);
+    }
+
+    loading = false;
+  }
+
+  function renderSlide(file) {
+    const slide = document.createElement('div');
+    slide.className = 'video-slide';
+    slide.dataset.fileId = file.id;
+
+    // Streaming langsung via Drive (cocok untuk file < ~100MB tanpa warning "scan virus")
+    const src = `https://drive.google.com/uc?export=download&id=${file.id}`;
+
+    slide.innerHTML = `
+      <video src="${src}" loop muted playsinline preload="metadata"></video>
+      <div class="tap-zone"></div>
+      <div class="side-actions">
+        <button class="action-btn like-btn">❤️</button>
+        <button class="action-btn mute-btn">🔇</button>
+      </div>
+      <div class="overlay">
+        <div class="filename">${escapeHtml(file.name)}</div>
+      </div>
+    `;
+
+    const video = slide.querySelector('video');
+    const tapZone = slide.querySelector('.tap-zone');
+    const likeBtn = slide.querySelector('.like-btn');
+    const muteBtn = slide.querySelector('.mute-btn');
+
+    tapZone.addEventListener('click', () => {
+      video.paused ? video.play() : video.pause();
+    });
+
+    likeBtn.addEventListener('click', () => {
+      const isLiked = likedSet.has(file.id);
+      if (isLiked) { likedSet.delete(file.id); likeBtn.classList.remove('liked'); }
+      else { likedSet.add(file.id); likeBtn.classList.add('liked'); }
+      // Catatan: like ini hanya di memori browser (tidak permanen).
+      // Untuk menyimpan permanen butuh backend seperti Firebase/Supabase.
+    });
+
+    muteBtn.addEventListener('click', () => {
+      video.muted = !video.muted;
+      muteBtn.textContent = video.muted ? '🔇' : '🔊';
+    });
+
+    // Video fallback: kalau gagal load (misal file besar kena "virus scan warning"),
+    // ganti otomatis ke iframe embed preview
+    video.addEventListener('error', () => {
+      slide.innerHTML = `
+        <iframe src="https://drive.google.com/file/d/${file.id}/preview"
+          style="width:100%;height:100%;border:0;" allow="autoplay"></iframe>
+        <div class="overlay"><div class="filename">${escapeHtml(file.name)}</div></div>
+      `;
+    });
+
+    feedEl.appendChild(slide);
+    observer.observe(slide);
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // Auto play/pause video sesuai yang sedang terlihat di layar (mirip TikTok)
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const video = entry.target.querySelector('video');
+      if (!video) return;
+      if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    });
+
+    // Infinite scroll: load halaman berikutnya saat mendekati akhir feed
+    const slides = feedEl.children;
+    if (slides.length > 0) {
+      const lastSlide = slides[slides.length - 1];
+      const lastRect = lastSlide.getBoundingClientRect();
+      if (lastRect.top < window.innerHeight * 2) {
+        fetchVideoList();
+      }
+    }
+  }, { threshold: [0, 0.6, 1] });
+
+  // Validasi config dasar sebelum mulai
+  if (!CONFIG.API_KEY || CONFIG.API_KEY.startsWith('ISI_') ||
+      !CONFIG.FOLDER_ID || CONFIG.FOLDER_ID.startsWith('ISI_')) {
+    showStatus(
+      `⚙️ Konfigurasi belum diisi.<br><br>` +
+      `Buka file <b>config.js</b> dan isi <b>API_KEY</b> serta <b>FOLDER_ID</b> ` +
+      `sesuai instruksi di README.md.`
+    );
+  } else {
+    fetchVideoList();
+  }
+})();
+</script>
+</body>
+</html>
