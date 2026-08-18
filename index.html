@@ -159,6 +159,7 @@
   let loading = false;
   let allLoaded = false;
   const likedSet = new Set();
+  let folderQueryClause = null; // diisi setelah subfolder ditelusuri
 
   function showStatus(html) {
     statusEl.classList.remove('hidden');
@@ -168,12 +169,60 @@
     statusEl.classList.add('hidden');
   }
 
+  // Menelusuri semua subfolder (rekursif, BFS) di dalam folder utama,
+  // supaya video di dalam subfolder ikut terdeteksi.
+  async function discoverAllFolderIds(rootId) {
+    const allIds = [rootId];
+    const queue = [rootId];
+    const MAX_FOLDERS = 300; // pengaman biar tidak infinite loop di struktur besar
+
+    while (queue.length > 0 && allIds.length < MAX_FOLDERS) {
+      const currentId = queue.shift();
+      let pageToken = null;
+
+      do {
+        const params = new URLSearchParams({
+          q: `'${currentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+          fields: 'nextPageToken, files(id)',
+          pageSize: '100',
+          key: CONFIG.API_KEY,
+        });
+        if (pageToken) params.set('pageToken', pageToken);
+
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'Gagal menelusuri subfolder');
+
+        (data.files || []).forEach((f) => {
+          allIds.push(f.id);
+          queue.push(f.id);
+        });
+        pageToken = data.nextPageToken || null;
+      } while (pageToken);
+    }
+
+    return allIds;
+  }
+
   async function fetchVideoList() {
     if (loading || allLoaded) return;
     loading = true;
 
+    // Tahap pertama: temukan semua folder (folder utama + semua subfolder)
+    if (!folderQueryClause) {
+      try {
+        showStatus('Menelusuri folder & subfolder...');
+        const folderIds = await discoverAllFolderIds(CONFIG.FOLDER_ID);
+        folderQueryClause = '(' + folderIds.map((id) => `'${id}' in parents`).join(' or ') + ')';
+      } catch (err) {
+        showStatus(`⚠️ Gagal menelusuri subfolder.<br><br>${err.message}`);
+        loading = false;
+        return;
+      }
+    }
+
     const params = new URLSearchParams({
-      q: `'${CONFIG.FOLDER_ID}' in parents and mimeType contains 'video/' and trashed = false`,
+      q: `${folderQueryClause} and mimeType contains 'video/' and trashed = false`,
       fields: 'nextPageToken, files(id, name, mimeType, videoMediaMetadata)',
       pageSize: String(CONFIG.PAGE_SIZE),
       key: CONFIG.API_KEY,
@@ -201,7 +250,7 @@
       if (!nextPageToken) allLoaded = true;
 
       if (files.length === 0 && feedEl.children.length === 0) {
-        showStatus('Belum ada video di folder ini.');
+        await runDiagnostics();
       } else {
         hideStatus();
         files.forEach(renderSlide);
@@ -211,6 +260,71 @@
     }
 
     loading = false;
+  }
+
+  async function runDiagnostics() {
+    try {
+      // Ambil SEMUA file (tanpa filter mimeType video) di folder-folder yang ditemukan,
+      // supaya kita tahu apakah masalahnya folder kosong, atau ada file tapi tipenya
+      // tidak dikenali sebagai video.
+      const params = new URLSearchParams({
+        q: `${folderQueryClause} and trashed = false`,
+        fields: 'files(id, name, mimeType)',
+        pageSize: '50',
+        key: CONFIG.API_KEY,
+      });
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+      const data = await res.json();
+
+      const folderCount = folderQueryClause.split(' or ').length;
+
+      if (data.error) {
+        showStatus(
+          `⚠️ Berhasil menelusuri ${folderCount} folder, tapi query file gagal:<br><br>` +
+          `<b>${data.error.message}</b>`
+        );
+        return;
+      }
+
+      const allFiles = data.files || [];
+
+      if (allFiles.length === 0) {
+        showStatus(
+          `🔍 <b>Diagnostik:</b><br><br>` +
+          `Ditemukan <b>${folderCount}</b> folder (termasuk folder utama + subfolder).<br>` +
+          `Tapi tidak ada file sama sekali di dalamnya yang terlihat oleh API.<br><br>` +
+          `Kemungkinan penyebab:<br>` +
+          `• Folder utama sudah "Anyone with the link", tapi subfolder-nya punya permission ` +
+          `terpisah (tidak ikut ter-share). Coba klik kanan folder utama → Share → pastikan ` +
+          `"Anyone with the link" mencakup subfolder juga.<br>` +
+          `• Video ada di folder yang BUKAN bagian dari folder ini (folder ID salah).<br>` +
+          `• Kalau ini folder di dalam <b>Shared Drive</b> (Team Drive), API perlu setting tambahan — ` +
+          `beri tahu saya kalau ini kasusnya.`
+        );
+      } else {
+        const mimeCounts = {};
+        allFiles.forEach((f) => {
+          mimeCounts[f.mimeType] = (mimeCounts[f.mimeType] || 0) + 1;
+        });
+        const mimeList = Object.entries(mimeCounts)
+          .map(([m, c]) => `${escapeHtml(m)} × ${c}`)
+          .join('<br>');
+        const sampleNames = allFiles.slice(0, 5).map((f) => escapeHtml(f.name)).join('<br>');
+
+        showStatus(
+          `🔍 <b>Diagnostik:</b><br><br>` +
+          `Ditemukan <b>${folderCount}</b> folder, dan <b>${allFiles.length}</b> file di dalamnya ` +
+          `(tipe apa saja), tapi tidak ada yang terdeteksi API sebagai video (mimeType video/...).<br><br>` +
+          `<b>Tipe file yang ditemukan:</b><br>${mimeList}<br><br>` +
+          `<b>Contoh nama file:</b><br>${sampleNames}<br><br>` +
+          `Kalau file kamu memang video tapi mimeType-nya bukan "video/...", ` +
+          `kemungkinan formatnya tidak dikenali Google Drive. Beri tahu saya tipe file di atas ` +
+          `supaya saya sesuaikan filter-nya.`
+        );
+      }
+    } catch (err) {
+      showStatus(`⚠️ Diagnostik gagal jalan: ${err.message}`);
+    }
   }
 
   function renderSlide(file) {
