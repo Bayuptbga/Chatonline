@@ -264,8 +264,9 @@
   // STATE ALGORITMA FYP RANDOM
   let activeFolders = [];       
   let foldersDiscovered = false;
-  let videoQueue = [];       // antrian video yang sudah diacak, siap ditampilkan
-  let queueBuilt = false;    // apakah videoQueue sudah selesai diisi dari semua folder
+  let videoQueue = [];             // antrian video yang sudah diacak, siap ditampilkan
+  let backgroundBuildDone = false; // apakah semua folder sudah selesai di-scan
+  let firstBatchRendered = false;  // apakah batch pertama sudah ditampilkan
 
   function showStatus(html) {
     statusEl.classList.remove('hidden');
@@ -364,39 +365,86 @@
       }
     }
 
-    if (!queueBuilt) {
-      showStatus('Mengacak video dari semua folder...');
-      let allFiles = [];
-      for (let i = 0; i < activeFolders.length; i++) {
-        try {
-          const files = await fetchAllVideosInFolder(activeFolders[i]);
-          allFiles = allFiles.concat(files);
-        } catch (err) {
-          console.error("Folder dilewati karena error:", activeFolders[i], err);
-        }
-      }
-      videoQueue = shuffleArray(allFiles);
-      queueBuilt = true;
-
-      if (videoQueue.length === 0) {
-        showStatus('⚠️ Tidak ada video ditemukan di folder yang dikonfigurasi.');
-        allLoaded = true;
-        loading = false;
-        return;
-      }
-    }
-
+  function renderNextBatch() {
     const batchSize = CONFIG.PAGE_SIZE || 10;
     const batch = videoQueue.splice(0, batchSize);
-
-    if (batch.length === 0) {
+    if (batch.length > 0) {
+      hideStatus();
+      batch.forEach(renderSlide);
+    }
+    if (videoQueue.length === 0 && backgroundBuildDone) {
       allLoaded = true;
-      loading = false;
-      return;
+    }
+  }
+
+  // Scan tiap folder satu-satu, dan begitu ada hasil langsung ditampilkan
+  // (nggak nunggu SEMUA folder selesai) — sisanya lanjut nge-scan di background.
+  async function buildQueueInBackground() {
+    for (let i = 0; i < activeFolders.length; i++) {
+      try {
+        const files = await fetchAllVideosInFolder(activeFolders[i]);
+        if (files.length > 0) {
+          videoQueue = shuffleArray(videoQueue.concat(files));
+          if (!firstBatchRendered) {
+            firstBatchRendered = true;
+            renderNextBatch();
+          }
+        }
+      } catch (err) {
+        console.error("Folder dilewati karena error:", activeFolders[i], err);
+      }
+    }
+    backgroundBuildDone = true;
+
+    if (videoQueue.length === 0 && !firstBatchRendered) {
+      showStatus('⚠️ Tidak ada video ditemukan di folder yang dikonfigurasi.');
+      allLoaded = true;
+    }
+  }
+
+  async function fetchVideoList() {
+    if (loading || allLoaded) return;
+    loading = true;
+    
+    if (!foldersDiscovered) {
+      showStatus('Menyiapkan algoritma Beranda (FYP)...');
+      let rootIds = [];
+      if (CONFIG.FOLDER_IDS && Array.isArray(CONFIG.FOLDER_IDS)) {
+        rootIds = rootIds.concat(CONFIG.FOLDER_IDS);
+      } else if (CONFIG.FOLDER_ID) {
+        rootIds.push(CONFIG.FOLDER_ID);
+      }
+
+      for (let i = 0; i < rootIds.length; i++) {
+        try {
+          const subfolders = await discoverAllFolderIds(rootIds[i]);
+          activeFolders = activeFolders.concat(subfolders);
+        } catch (err) {
+          console.error("Gagal menelusuri root folder:", rootIds[i], err);
+        }
+      }
+      
+      activeFolders = [...new Set(activeFolders)];
+      foldersDiscovered = true;
+      
+      if(activeFolders.length === 0) {
+         showStatus('⚠️ Gagal mendapatkan folder. Pastikan ID folder di config.js valid.');
+         loading = false;
+         return;
+      }
+
+      showStatus('Mengacak video...');
+      buildQueueInBackground(); // tidak di-await, jalan di background
     }
 
-    hideStatus();
-    batch.forEach(renderSlide);
+    if (videoQueue.length > 0) {
+      renderNextBatch();
+    } else if (backgroundBuildDone) {
+      allLoaded = true;
+    }
+    // kalau queue masih kosong tapi background build belum selesai,
+    // biarin — nanti otomatis ke-render begitu buildQueueInBackground dapat hasil pertama
+
     loading = false;
   }
 
