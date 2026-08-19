@@ -482,22 +482,11 @@
       }
     });
 
-    // SISTEM FALLBACK ANTI-ERROR (IFRAME)
+    // Jika video gagal dimuat, hapus slide ini dari feed (skip, tanpa iframe)
     video.addEventListener('error', () => {
-       console.log("Video murni gagal dimuat, beralih ke Mode Iframe (Plan B)...");
-       
-       // Hapus tag video yang error
-       video.remove();
-       
-       // Buat container iframe baru di posisi paling belakang (z-index 1)
-       const iframeContainer = document.createElement('div');
-       iframeContainer.style.cssText = "position: absolute; inset: 0; z-index: 1; pointer-events: none; width: 100%; height: 100%;";
-       
-       // Gunakan link preview bawaan google drive
-       iframeContainer.innerHTML = `<iframe src="https://drive.google.com/file/d/${file.id}/preview?autoplay=1" style="width:100%; height:100%; border:0;" allow="autoplay"></iframe>`;
-       
-       // Masukkan iframe ke dalam slide, tepat sebelum tapZone
-       slide.insertBefore(iframeContainer, tapZone);
+       console.log("Video gagal dimuat, slide dilewati:", file.id);
+       observer.unobserve(slide);
+       slide.remove();
     });
 
     feedEl.appendChild(slide);
