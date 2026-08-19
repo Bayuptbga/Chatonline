@@ -5,14 +5,8 @@
 const CONFIG = {
   API_KEY: "AIzaSyBxmHrrGOA_TseA3OtthWtXkjsda_vVtfQ",
 
-  // 5 Folder ID yang sudah dimasukkan
-  FOLDER_IDS: [
-    "12NSkb5iGK83stAkQnzEJNDcXZVt_Cd3d",
-    "1PWzl2KhbNvd8sBKPH0BiQUKBhB2a1-Uw",
-    "1w_FCtfUCGolrrXmCFZmFBo3iMNBiV4n2",
-    "1F1M-p9mVcQQsTo1qh9hK5-NxFNbPxp_q",
-    "122ALoQH6E4_rZCm08hFF3qcVpcXtmEaF"
-  ],
+  // 1 Folder ID (dipakai sendirian biar lebih aman & lancar)
+  FOLDER_ID: "12NSkb5iGK83stAkQnzEJNDcXZVt_Cd3d",
 
   // Jumlah video yang diambil per load
   PAGE_SIZE: 2,
