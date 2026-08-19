@@ -314,44 +314,67 @@
     }
   }
 
+  function chunkArray(arr, size) {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  // Menelusuri subfolder level demi level, TAPI tiap level di-query dalam batch
+  // (banyak folder ID digabung jadi satu query pakai 'or'), bukan satu-satu.
+  // Ini yang paling menghemat jumlah request ke Drive API kalau folder banyak.
+  const FOLDER_QUERY_BATCH_SIZE = 20;
+
   async function discoverAllFolderIds(rootId) {
     const allIds = [rootId];
-    const queue = [rootId];
-    const MAX_FOLDERS = 150; 
+    let currentLevel = [rootId];
+    const MAX_FOLDERS = 150;
     await getFolderName(rootId);
-    while (queue.length > 0 && allIds.length < MAX_FOLDERS) {
-      const currentId = queue.shift();
-      let pageToken = null;
-      do {
-        const params = new URLSearchParams({
-          q: `'${currentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-          fields: 'nextPageToken, files(id, name)',
-          pageSize: '100',
-          key: CONFIG.API_KEY,
-        });
-        if (pageToken) params.set('pageToken', pageToken);
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message);
-        (data.files || []).forEach((f) => {
-          allIds.push(f.id);
-          queue.push(f.id);
-          folderNames[f.id] = f.name;
-        });
-        pageToken = data.nextPageToken || null;
-      } while (pageToken);
+
+    while (currentLevel.length > 0 && allIds.length < MAX_FOLDERS) {
+      const nextLevel = [];
+      const batches = chunkArray(currentLevel, FOLDER_QUERY_BATCH_SIZE);
+
+      for (const batch of batches) {
+        if (allIds.length >= MAX_FOLDERS) break;
+        const orClause = batch.map((id) => `'${id}' in parents`).join(' or ');
+        let pageToken = null;
+        do {
+          const params = new URLSearchParams({
+            q: `(${orClause}) and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+            fields: 'nextPageToken, files(id, name)',
+            pageSize: '1000',
+            key: CONFIG.API_KEY,
+          });
+          if (pageToken) params.set('pageToken', pageToken);
+          const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+          const data = await res.json();
+          if (data.error) throw new Error(data.error.message);
+          (data.files || []).forEach((f) => {
+            if (allIds.length < MAX_FOLDERS) {
+              allIds.push(f.id);
+              nextLevel.push(f.id);
+              folderNames[f.id] = f.name;
+            }
+          });
+          pageToken = data.nextPageToken || null;
+        } while (pageToken);
+      }
+      currentLevel = nextLevel;
     }
     return allIds;
   }
 
-  // Ambil SEMUA video dari satu folder (paginasi penuh), tanpa render dulu
-  async function fetchAllVideosInFolder(folderId) {
+  // Ambil SEMUA video dari SEKUMPULAN folder sekaligus (query digabung pakai 'or'),
+  // jadi tidak perlu 1 request per folder. Jauh lebih hemat saat folder ID banyak.
+  async function fetchAllVideosInFolders(folderIds) {
     const files = [];
+    const orClause = folderIds.map((id) => `'${id}' in parents`).join(' or ');
     let pageToken = null;
     do {
       const params = new URLSearchParams({
-        q: `'${folderId}' in parents and mimeType contains 'video/' and trashed = false`,
-        fields: 'nextPageToken, files(id, name, mimeType)',
+        q: `(${orClause}) and mimeType contains 'video/' and trashed = false`,
+        fields: 'nextPageToken, files(id, name, mimeType, parents)',
         pageSize: '1000',
         key: CONFIG.API_KEY,
       });
@@ -359,8 +382,10 @@
       const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
-      // Tandai tiap file dengan folder asalnya, biar bisa ditampilkan sebagai @username
-      (data.files || []).forEach((f) => { f.parentFolderId = folderId; });
+      // Tandai tiap file dengan folder asalnya (dari daftar parents), biar bisa ditampilkan sebagai @username
+      (data.files || []).forEach((f) => {
+        f.parentFolderId = (f.parents && f.parents.find((p) => folderIds.includes(p))) || folderIds[0];
+      });
       files.push(...(data.files || []));
       pageToken = data.nextPageToken || null;
     } while (pageToken);
@@ -386,10 +411,13 @@
   // Scan tiap folder satu-satu, dan begitu ada hasil langsung ditampilkan
   // (nggak nunggu SEMUA folder selesai) — sisanya lanjut nge-scan di background,
   // dengan jeda tiap folder biar nggak rebutan bandwidth sama video yang lagi diputar.
+  const VIDEO_QUERY_BATCH_SIZE = 20; // berapa folder digabung dalam 1 query video
+
   async function buildQueueInBackground() {
-    for (let i = 0; i < activeFolders.length; i++) {
+    const batches = chunkArray(activeFolders, VIDEO_QUERY_BATCH_SIZE);
+    for (let i = 0; i < batches.length; i++) {
       try {
-        const files = await fetchAllVideosInFolder(activeFolders[i]);
+        const files = await fetchAllVideosInFolders(batches[i]);
         if (files.length > 0) {
           videoQueue = shuffleArray(videoQueue.concat(files));
           if (!firstBatchRendered) {
@@ -398,9 +426,9 @@
           }
         }
       } catch (err) {
-        console.error("Folder dilewati karena error:", activeFolders[i], err);
+        console.error("Batch folder dilewati karena error:", batches[i], err);
       }
-      if (i < activeFolders.length - 1) {
+      if (i < batches.length - 1) {
         await delay(700); // jeda biar video yang lagi buffer nggak keganggu
       }
     }
@@ -425,15 +453,16 @@
         rootIds.push(CONFIG.FOLDER_ID);
       }
 
-      for (let i = 0; i < rootIds.length; i++) {
-        try {
-          const subfolders = await discoverAllFolderIds(rootIds[i]);
-          activeFolders = activeFolders.concat(subfolders);
-        } catch (err) {
-          console.error("Gagal menelusuri root folder:", rootIds[i], err);
-        }
-      }
-      
+      const discoveryResults = await Promise.all(
+        rootIds.map((id) =>
+          discoverAllFolderIds(id).catch((err) => {
+            console.error("Gagal menelusuri root folder:", id, err);
+            return [];
+          })
+        )
+      );
+      activeFolders = discoveryResults.flat();
+
       activeFolders = [...new Set(activeFolders)];
       foldersDiscovered = true;
       
