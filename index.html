@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>DriveTok</title>
+<title>DriveTok v7</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
@@ -12,6 +12,7 @@
     background: #000;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
   }
   
   #feed {
@@ -44,13 +45,12 @@
     background: #000;
   }
 
-  /* Diubah: bottom dinaikkan agar tidak tertutup navbar */
   .overlay {
     position: absolute;
-    bottom: 60px; 
+    bottom: 60px;
     left: 0;
     width: 100%;
-    padding: 20px 80px 20px 20px;
+    padding: 30px 80px 20px 16px;
     background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
     color: #fff;
     z-index: 3;
@@ -61,25 +61,25 @@
   .video-info h3 {
     font-size: 16px;
     margin-bottom: 8px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
   }
   .video-info p {
     font-size: 14px;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    line-height: 1.4;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
 
-  /* Diubah: bottom dinaikkan agar sejajar estetik dengan navbar */
   .side-actions {
     position: absolute;
     right: 12px;
     bottom: 80px; 
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 22px;
     z-index: 4;
   }
   
@@ -87,7 +87,7 @@
     background: transparent;
     color: white;
     border: none;
-    font-size: 32px;
+    font-size: 34px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
     cursor: pointer;
     display: flex;
@@ -130,17 +130,40 @@
     top: 0;
     left: 0;
     right: 0;
-    padding: 14px 16px;
-    color: #fff;
-    font-weight: 700;
-    font-size: 18px;
-    text-align: center;
+    padding: 20px 16px 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
     z-index: 10;
-    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
-    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
+  }
+  
+  .top-tab {
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+    font-size: 16px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .top-tab.active {
+    color: #fff;
+    font-size: 17px;
+    position: relative;
+  }
+  .top-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 3px;
+    background: #fff;
+    border-radius: 2px;
   }
 
-  /* NAVBAR BOTTOM TIKTOK STYLE */
   #bottom-navbar {
     position: fixed;
     bottom: 0;
@@ -163,128 +186,60 @@
     align-items: center;
     gap: 4px;
     cursor: pointer;
-    text-decoration: none;
     flex: 1;
   }
-  .nav-item.active {
-    color: #fff;
-  }
-  .nav-icon {
-    width: 24px;
-    height: 24px;
-    fill: currentColor;
-  }
+  .nav-item.active { color: #fff; }
+  .nav-icon { width: 24px; height: 24px; fill: currentColor; }
   
-  /* Ikon Plus Khas TikTok */
-  .nav-add-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-  }
+  .nav-add-wrapper { display: flex; align-items: center; justify-content: center; flex: 1; }
   .nav-add-btn {
-    width: 42px;
-    height: 28px;
-    background: #fff;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    cursor: pointer;
+    width: 42px; height: 28px; background: #fff; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer;
   }
-  .nav-add-btn::before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background: #20D5EC; /* Cyan TikTok */
-    left: -4px;
-    border-radius: 8px;
-    z-index: -1;
-  }
-  .nav-add-btn::after {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background: #FE2C55; /* Merah TikTok */
-    right: -4px;
-    border-radius: 8px;
-    z-index: -2;
-  }
-  .nav-add-btn svg {
-    fill: #000;
-    width: 18px;
-    height: 18px;
-  }
+  .nav-add-btn::before { content: ''; position: absolute; width: 100%; height: 100%; background: #20D5EC; left: -4px; border-radius: 8px; z-index: -1; }
+  .nav-add-btn::after { content: ''; position: absolute; width: 100%; height: 100%; background: #FE2C55; right: -4px; border-radius: 8px; z-index: -2; }
+  .nav-add-btn svg { fill: #000; width: 18px; height: 18px; }
   
   #status {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    text-align: center;
-    padding: 24px;
-    font-size: 15px;
-    line-height: 1.6;
-    z-index: 20;
-    background: rgba(0,0,0,0.8);
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #fff; text-align: center; padding: 24px; font-size: 15px; line-height: 1.6;
+    z-index: 20; background: rgba(0,0,0,0.8);
   }
   #status.hidden { display: none; }
   
   .spinner {
-    width: 34px;
-    height: 34px;
-    border: 3px solid rgba(255,255,255,0.25);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 14px;
+    width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.25);
+    border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 14px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   
   .error-msg {
-    color: white; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    height: 100%; 
-    text-align: center; 
-    padding: 20px;
-    background: #111;
+    color: white; display: flex; align-items: center; justify-content: center; 
+    height: 100%; text-align: center; padding: 20px; background: #111;
   }
 </style>
 </head>
 <body>
 
-<div id="topbar">DriveTok</div>
+<div id="topbar">
+  <span class="top-tab" onclick="alert('Fitur Mengikuti akan segera hadir!')">Mengikuti</span>
+  <span class="top-tab active">Untuk Anda</span>
+</div>
 <div id="feed"></div>
 
-<!-- BOTTOM NAVBAR -->
 <div id="bottom-navbar">
   <div class="nav-item active">
-    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3L4 9v12h5v-7h6v7h5V9z"/></svg>
-    <span>Beranda</span>
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3L4 9v12h5v-7h6v7h5V9z"/></svg><span>Beranda</span>
   </div>
   <div class="nav-item">
-    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-    <span>Teman</span>
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg><span>Teman</span>
   </div>
-  <div class="nav-add-wrapper">
-    <div class="nav-add-btn">
-      <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-    </div>
+  <div class="nav-add-wrapper"><div class="nav-add-btn"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></div></div>
+  <div class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg><span>Kotak Masuk</span>
   </div>
   <div class="nav-item">
-    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-    <span>Kotak Masuk</span>
-  </div>
-  <div class="nav-item">
-    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-    <span>Profil</span>
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg><span>Profil</span>
   </div>
 </div>
 
@@ -322,7 +277,7 @@
   async function discoverAllFolderIds(rootId) {
     const allIds = [rootId];
     const queue = [rootId];
-    const MAX_FOLDERS = 300; 
+    const MAX_FOLDERS = 150; // Disesuaikan agar pencarian tidak terlalu lama
     while (queue.length > 0 && allIds.length < MAX_FOLDERS) {
       const currentId = queue.shift();
       let pageToken = null;
@@ -336,7 +291,7 @@
         if (pageToken) params.set('pageToken', pageToken);
         const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
         const data = await res.json();
-        if (data.error) throw new Error(data.error.message || 'Gagal menelusuri subfolder');
+        if (data.error) throw new Error(data.error.message);
         (data.files || []).forEach((f) => {
           allIds.push(f.id);
           queue.push(f.id);
@@ -351,20 +306,43 @@
     if (loading || allLoaded) return;
     loading = true;
     
+    // TAHAP 1: KUMPULKAN ID DARI BANYAK FOLDER UTAMA
     if (!foldersDiscovered) {
-      try {
-        showStatus('Menelusuri folder & subfolder...');
-        folderIds = await discoverAllFolderIds(CONFIG.FOLDER_ID);
-        foldersDiscovered = true;
-      } catch (err) {
-        showStatus(`⚠️ Gagal menelusuri subfolder.<br><br>${err.message}`);
-        loading = false;
-        return;
+      showStatus('Menelusuri folder & subfolder...');
+      folderIds = [];
+      
+      // Ambil daftar ID (Dukung format Array FOLDER_IDS atau string FOLDER_ID lawas)
+      let rootIds = [];
+      if (CONFIG.FOLDER_IDS && Array.isArray(CONFIG.FOLDER_IDS)) {
+        rootIds = rootIds.concat(CONFIG.FOLDER_IDS);
+      } else if (CONFIG.FOLDER_ID) {
+        rootIds.push(CONFIG.FOLDER_ID);
+      }
+
+      // Looping semua root folder
+      for (let i = 0; i < rootIds.length; i++) {
+        try {
+          const subfolders = await discoverAllFolderIds(rootIds[i]);
+          folderIds = folderIds.concat(subfolders);
+        } catch (err) {
+          console.error("Gagal menelusuri root folder:", rootIds[i], err);
+        }
+      }
+      
+      // Hapus duplikat ID jika ada folder yang saling tumpang tindih
+      folderIds = [...new Set(folderIds)];
+      foldersDiscovered = true;
+      
+      if(folderIds.length === 0) {
+         showStatus('⚠️ Gagal mendapatkan folder. Pastikan ID folder di config.js valid.');
+         loading = false;
+         return;
       }
     }
 
     let videosFetched = [];
 
+    // TAHAP 2: FETCHING VIDEO BERANTAI
     while (videosFetched.length < CONFIG.PAGE_SIZE && currentFolderIndex < folderIds.length) {
       const currentFolderId = folderIds[currentFolderIndex];
       const fetchLimit = CONFIG.PAGE_SIZE - videosFetched.length;
@@ -406,16 +384,14 @@
       hideStatus();
       videosFetched.forEach(renderSlide);
     } else if (feedEl.children.length === 0 && allLoaded) {
-      showStatus('⚠️ Tidak ada video yang ditemukan di folder utama maupun subfolder.<br><br>Pastikan subfolder sudah dibagikan (Anyone with the link).');
+      showStatus('⚠️ Tidak ada video yang ditemukan.<br><br>Pastikan folder sudah dibagikan (Anyone with the link).');
     }
 
     loading = false;
   }
 
   function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
+    const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
   }
 
   function renderSlide(file) {
@@ -438,7 +414,7 @@
       
       <div class="overlay">
         <div class="video-info">
-          <h3>@drivetok_user</h3>
+          <h3>@user_${file.id.substring(0,5).toLowerCase()}</h3>
           <p>${escapeHtml(file.name)}</p>
         </div>
       </div>
@@ -463,24 +439,17 @@
         }
         
         const rect = tapZone.getBoundingClientRect();
-        const x = e.clientX - rect.left - 40; 
-        const y = e.clientY - rect.top - 40;
-        heartPop.style.left = `${x}px`;
-        heartPop.style.top = `${y}px`;
-        
+        heartPop.style.left = `${e.clientX - rect.left - 40}px`;
+        heartPop.style.top = `${e.clientY - rect.top - 40}px`;
         heartPop.classList.remove('fade');
         heartPop.classList.add('animate');
-        
         setTimeout(() => {
           heartPop.classList.remove('animate');
           heartPop.classList.add('fade');
         }, 500);
-
       } else {
         setTimeout(() => {
-          if (currentTime === lastTap) { 
-            video.paused ? video.play() : video.pause();
-          }
+          if (currentTime === lastTap) { video.paused ? video.play() : video.pause(); }
         }, 300);
       }
       lastTap = currentTime;
@@ -489,28 +458,16 @@
     likeBtn.addEventListener('click', () => {
       const isLiked = likedSet.has(file.id);
       if (isLiked) { 
-        likedSet.delete(file.id); 
-        likeBtn.innerHTML = '🤍<span>Suka</span>';
-        likeBtn.classList.remove('liked'); 
+        likedSet.delete(file.id); likeBtn.innerHTML = '🤍<span>Suka</span>'; likeBtn.classList.remove('liked'); 
       } else { 
-        likedSet.add(file.id); 
-        likeBtn.innerHTML = '❤️<span>Suka</span>';
-        likeBtn.classList.add('liked'); 
+        likedSet.add(file.id); likeBtn.innerHTML = '❤️<span>Suka</span>'; likeBtn.classList.add('liked'); 
       }
     });
-
     muteBtn.addEventListener('click', () => {
-      video.muted = !video.muted;
-      muteBtn.innerHTML = video.muted ? '🔇<span>Bisu</span>' : '🔊<span>Suara</span>';
+      video.muted = !video.muted; muteBtn.innerHTML = video.muted ? '🔇<span>Bisu</span>' : '🔊<span>Suara</span>';
     });
-
     video.addEventListener('error', () => {
-       console.error("Gagal memuat video:", file.name);
-       tapZone.innerHTML = `
-         <div class="error-msg">
-            ⚠️ Gagal memutar video.<br><br>Pastikan file berformat MP4 dan link Google Drive sudah diatur "Anyone with the link".
-         </div>
-       `;
+       tapZone.innerHTML = `<div class="error-msg">⚠️ Gagal memutar video.</div>`;
     });
 
     feedEl.appendChild(slide);
@@ -527,19 +484,20 @@
         video.pause();
       }
     });
-
     const slides = feedEl.children;
     if (slides.length > 0) {
       const lastSlide = slides[slides.length - 1];
-      const lastRect = lastSlide.getBoundingClientRect();
-      if (lastRect.top < window.innerHeight * 2) {
+      if (lastSlide.getBoundingClientRect().top < window.innerHeight * 2) {
         fetchVideoList();
       }
     }
   }, { threshold: [0, 0.6, 1] });
 
-  if (!CONFIG.API_KEY || CONFIG.API_KEY.startsWith('ISI_') ||
-      !CONFIG.FOLDER_ID || CONFIG.FOLDER_ID.startsWith('ISI_')) {
+  // Pengecekan Config yang mendukung array FOLDER_IDS
+  const hasFolderId = CONFIG.FOLDER_ID && !CONFIG.FOLDER_ID.startsWith('ISI_');
+  const hasFolderIds = CONFIG.FOLDER_IDS && Array.isArray(CONFIG.FOLDER_IDS) && CONFIG.FOLDER_IDS.length > 0;
+  
+  if (!CONFIG.API_KEY || CONFIG.API_KEY.startsWith('ISI_') || (!hasFolderId && !hasFolderIds)) {
     showStatus('⚙️ Konfigurasi belum diisi. Periksa config.js');
   } else {
     fetchVideoList();
