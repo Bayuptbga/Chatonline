@@ -405,7 +405,7 @@
     slide.className = 'video-slide';
     slide.dataset.fileId = file.id;
 
-    const src = `https://drive.google.com/uc?export=download&id=${file.id}`;
+    const src = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${CONFIG.API_KEY}`;
 
     slide.innerHTML = `
       <video src="${src}" loop muted playsinline preload="metadata"></video>
