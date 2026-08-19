@@ -5,12 +5,13 @@
 const CONFIG = {
   API_KEY: "AIzaSyBxmHrrGOA_TseA3OtthWtXkjsda_vVtfQ",
 
-  // BARU: Gunakan FOLDER_IDS (Array) untuk memasukkan banyak folder utama sekaligus
-  // Pastikan Anda memisahkan ID dengan tanda kutip dan koma
+  // 5 Folder ID yang sudah dimasukkan
   FOLDER_IDS: [
-    "1Zz47e3-ewXqt1y3qvEgBQWnug1LLt2fA", // Folder 1
-    "1PWzl2KhbNvd8sBKPH0BiQUKBhB2a1-Uw",    // Folder 2 (hapus // untuk mengaktifkan)
-    // "ID_FOLDER_KETIGA_KAMU_DISINI"    // Folder 3
+    "12NSkb5iGK83stAkQnzEJNDcXZVt_Cd3d",
+    "1PWzl2KhbNvd8sBKPH0BiQUKBhB2a1-Uw",
+    "1w_FCtfUCGolrrXmCFZmFBo3iMNBiV4n2",
+    "1F1M-p9mVcQQsTo1qh9hK5-NxFNbPxp_q",
+    "122ALoQH6E4_rZCm08hFF3qcVpcXtmEaF"
   ],
 
   // Jumlah video yang diambil per load

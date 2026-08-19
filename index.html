@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>DriveTok v7</title>
+<title>DriveTok v8 (5 Folders)</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
@@ -261,9 +261,9 @@
   let allLoaded = false;
   const likedSet = new Set();
   
-  let folderIds = [];
-  let currentFolderIndex = 0;
-  let currentNextPageToken = null;
+  // STATE ALGORITMA FYP RANDOM
+  let activeFolders = [];       
+  let folderTokens = {};        
   let foldersDiscovered = false;
 
   function showStatus(html) {
@@ -274,10 +274,19 @@
     statusEl.classList.add('hidden');
   }
 
+  // ALGORITMA PENGACAKAN ARRAY (Fisher-Yates)
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
   async function discoverAllFolderIds(rootId) {
     const allIds = [rootId];
     const queue = [rootId];
-    const MAX_FOLDERS = 150; // Disesuaikan agar pencarian tidak terlalu lama
+    const MAX_FOLDERS = 150; 
     while (queue.length > 0 && allIds.length < MAX_FOLDERS) {
       const currentId = queue.shift();
       let pageToken = null;
@@ -306,12 +315,9 @@
     if (loading || allLoaded) return;
     loading = true;
     
-    // TAHAP 1: KUMPULKAN ID DARI BANYAK FOLDER UTAMA
+    // TAHAP 1: PERSIAPKAN KOLAM FOLDER
     if (!foldersDiscovered) {
-      showStatus('Menelusuri folder & subfolder...');
-      folderIds = [];
-      
-      // Ambil daftar ID (Dukung format Array FOLDER_IDS atau string FOLDER_ID lawas)
+      showStatus('Menyiapkan algoritma Beranda (FYP)...');
       let rootIds = [];
       if (CONFIG.FOLDER_IDS && Array.isArray(CONFIG.FOLDER_IDS)) {
         rootIds = rootIds.concat(CONFIG.FOLDER_IDS);
@@ -319,72 +325,77 @@
         rootIds.push(CONFIG.FOLDER_ID);
       }
 
-      // Looping semua root folder
       for (let i = 0; i < rootIds.length; i++) {
         try {
           const subfolders = await discoverAllFolderIds(rootIds[i]);
-          folderIds = folderIds.concat(subfolders);
+          activeFolders = activeFolders.concat(subfolders);
         } catch (err) {
           console.error("Gagal menelusuri root folder:", rootIds[i], err);
         }
       }
       
-      // Hapus duplikat ID jika ada folder yang saling tumpang tindih
-      folderIds = [...new Set(folderIds)];
+      activeFolders = [...new Set(activeFolders)];
+      
+      activeFolders.forEach(id => { folderTokens[id] = null; });
       foldersDiscovered = true;
       
-      if(folderIds.length === 0) {
+      if(activeFolders.length === 0) {
          showStatus('⚠️ Gagal mendapatkan folder. Pastikan ID folder di config.js valid.');
          loading = false;
          return;
       }
     }
 
-    let videosFetched = [];
-
-    // TAHAP 2: FETCHING VIDEO BERANTAI
-    while (videosFetched.length < CONFIG.PAGE_SIZE && currentFolderIndex < folderIds.length) {
-      const currentFolderId = folderIds[currentFolderIndex];
-      const fetchLimit = CONFIG.PAGE_SIZE - videosFetched.length;
-
-      const params = new URLSearchParams({
-        q: `'${currentFolderId}' in parents and mimeType contains 'video/' and trashed = false`,
-        fields: 'nextPageToken, files(id, name, mimeType)',
-        pageSize: String(fetchLimit),
-        key: CONFIG.API_KEY,
-      });
-      
-      if (currentNextPageToken) params.set('pageToken', currentNextPageToken);
-
-      try {
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
-        const data = await res.json();
-        
-        if (data.error) throw new Error(data.error.message);
-
-        const files = data.files || [];
-        videosFetched = videosFetched.concat(files);
-        currentNextPageToken = data.nextPageToken || null;
-
-        if (!currentNextPageToken) {
-          currentFolderIndex++;
-        }
-      } catch (err) {
-        console.error("Folder dilewati karena error:", currentFolderId, err);
-        currentFolderIndex++;
-        currentNextPageToken = null;
-      }
-    }
-
-    if (currentFolderIndex >= folderIds.length && !currentNextPageToken) {
+    if (activeFolders.length === 0) {
       allLoaded = true;
+      loading = false;
+      return;
     }
 
-    if (videosFetched.length > 0) {
+    // TAHAP 2: ALGORITMA FYP (Pilih Folder Secara Acak)
+    const randomFolderIndex = Math.floor(Math.random() * activeFolders.length);
+    const selectedFolderId = activeFolders[randomFolderIndex];
+    const pageToken = folderTokens[selectedFolderId];
+
+    const params = new URLSearchParams({
+      q: `'${selectedFolderId}' in parents and mimeType contains 'video/' and trashed = false`,
+      fields: 'nextPageToken, files(id, name, mimeType)',
+      pageSize: String(CONFIG.PAGE_SIZE || 10),
+      key: CONFIG.API_KEY,
+    });
+    
+    if (pageToken) params.set('pageToken', pageToken);
+
+    try {
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+      const data = await res.json();
+      
+      if (data.error) throw new Error(data.error.message);
+
+      let files = data.files || [];
+
+      if (data.nextPageToken) {
+        folderTokens[selectedFolderId] = data.nextPageToken;
+      } else {
+        activeFolders.splice(randomFolderIndex, 1);
+      }
+
+      if (files.length === 0) {
+        loading = false;
+        return fetchVideoList(); 
+      }
+
+      // TAHAP 3: ACAK SUSUNAN VIDEO YANG DITERIMA
+      files = shuffleArray(files);
+
       hideStatus();
-      videosFetched.forEach(renderSlide);
-    } else if (feedEl.children.length === 0 && allLoaded) {
-      showStatus('⚠️ Tidak ada video yang ditemukan.<br><br>Pastikan folder sudah dibagikan (Anyone with the link).');
+      files.forEach(renderSlide);
+
+    } catch (err) {
+      console.error("Folder dilewati karena error:", selectedFolderId, err);
+      activeFolders.splice(randomFolderIndex, 1);
+      loading = false;
+      return fetchVideoList(); 
     }
 
     loading = false;
@@ -467,7 +478,7 @@
       video.muted = !video.muted; muteBtn.innerHTML = video.muted ? '🔇<span>Bisu</span>' : '🔊<span>Suara</span>';
     });
     video.addEventListener('error', () => {
-       tapZone.innerHTML = `<div class="error-msg">⚠️ Gagal memutar video.</div>`;
+       tapZone.innerHTML = `<div class="error-msg">⚠️ Gagal memutar video.<br>Pastikan file berformat MP4 dan ukuran tidak terlalu besar.</div>`;
     });
 
     feedEl.appendChild(slide);
@@ -493,7 +504,6 @@
     }
   }, { threshold: [0, 0.6, 1] });
 
-  // Pengecekan Config yang mendukung array FOLDER_IDS
   const hasFolderId = CONFIG.FOLDER_ID && !CONFIG.FOLDER_ID.startsWith('ISI_');
   const hasFolderIds = CONFIG.FOLDER_IDS && Array.isArray(CONFIG.FOLDER_IDS) && CONFIG.FOLDER_IDS.length > 0;
   
