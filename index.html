@@ -263,8 +263,9 @@
   
   // STATE ALGORITMA FYP RANDOM
   let activeFolders = [];       
-  let folderTokens = {};        
   let foldersDiscovered = false;
+  let videoQueue = [];       // antrian video yang sudah diacak, siap ditampilkan
+  let queueBuilt = false;    // apakah videoQueue sudah selesai diisi dari semua folder
 
   function showStatus(html) {
     statusEl.classList.remove('hidden');
@@ -310,6 +311,27 @@
     return allIds;
   }
 
+  // Ambil SEMUA video dari satu folder (paginasi penuh), tanpa render dulu
+  async function fetchAllVideosInFolder(folderId) {
+    const files = [];
+    let pageToken = null;
+    do {
+      const params = new URLSearchParams({
+        q: `'${folderId}' in parents and mimeType contains 'video/' and trashed = false`,
+        fields: 'nextPageToken, files(id, name, mimeType)',
+        pageSize: '1000',
+        key: CONFIG.API_KEY,
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+      files.push(...(data.files || []));
+      pageToken = data.nextPageToken || null;
+    } while (pageToken);
+    return files;
+  }
+
   async function fetchVideoList() {
     if (loading || allLoaded) return;
     loading = true;
@@ -333,8 +355,6 @@
       }
       
       activeFolders = [...new Set(activeFolders)];
-      
-      activeFolders.forEach(id => { folderTokens[id] = null; });
       foldersDiscovered = true;
       
       if(activeFolders.length === 0) {
@@ -344,55 +364,39 @@
       }
     }
 
-    if (activeFolders.length === 0) {
+    if (!queueBuilt) {
+      showStatus('Mengacak video dari semua folder...');
+      let allFiles = [];
+      for (let i = 0; i < activeFolders.length; i++) {
+        try {
+          const files = await fetchAllVideosInFolder(activeFolders[i]);
+          allFiles = allFiles.concat(files);
+        } catch (err) {
+          console.error("Folder dilewati karena error:", activeFolders[i], err);
+        }
+      }
+      videoQueue = shuffleArray(allFiles);
+      queueBuilt = true;
+
+      if (videoQueue.length === 0) {
+        showStatus('⚠️ Tidak ada video ditemukan di folder yang dikonfigurasi.');
+        allLoaded = true;
+        loading = false;
+        return;
+      }
+    }
+
+    const batchSize = CONFIG.PAGE_SIZE || 10;
+    const batch = videoQueue.splice(0, batchSize);
+
+    if (batch.length === 0) {
       allLoaded = true;
       loading = false;
       return;
     }
 
-    const randomFolderIndex = Math.floor(Math.random() * activeFolders.length);
-    const selectedFolderId = activeFolders[randomFolderIndex];
-    const pageToken = folderTokens[selectedFolderId];
-
-    const params = new URLSearchParams({
-      q: `'${selectedFolderId}' in parents and mimeType contains 'video/' and trashed = false`,
-      fields: 'nextPageToken, files(id, name, mimeType)',
-      pageSize: String(CONFIG.PAGE_SIZE || 10),
-      key: CONFIG.API_KEY,
-    });
-    
-    if (pageToken) params.set('pageToken', pageToken);
-
-    try {
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
-      const data = await res.json();
-      
-      if (data.error) throw new Error(data.error.message);
-
-      let files = data.files || [];
-
-      if (data.nextPageToken) {
-        folderTokens[selectedFolderId] = data.nextPageToken;
-      } else {
-        activeFolders.splice(randomFolderIndex, 1);
-      }
-
-      if (files.length === 0) {
-        loading = false;
-        return fetchVideoList(); 
-      }
-
-      files = shuffleArray(files);
-      hideStatus();
-      files.forEach(renderSlide);
-
-    } catch (err) {
-      console.error("Folder dilewati karena error:", selectedFolderId, err);
-      activeFolders.splice(randomFolderIndex, 1);
-      loading = false;
-      return fetchVideoList(); 
-    }
-
+    hideStatus();
+    batch.forEach(renderSlide);
     loading = false;
   }
 
