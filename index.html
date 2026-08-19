@@ -362,8 +362,13 @@
     }
   }
 
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   // Scan tiap folder satu-satu, dan begitu ada hasil langsung ditampilkan
-  // (nggak nunggu SEMUA folder selesai) — sisanya lanjut nge-scan di background.
+  // (nggak nunggu SEMUA folder selesai) — sisanya lanjut nge-scan di background,
+  // dengan jeda tiap folder biar nggak rebutan bandwidth sama video yang lagi diputar.
   async function buildQueueInBackground() {
     for (let i = 0; i < activeFolders.length; i++) {
       try {
@@ -377,6 +382,9 @@
         }
       } catch (err) {
         console.error("Folder dilewati karena error:", activeFolders[i], err);
+      }
+      if (i < activeFolders.length - 1) {
+        await delay(700); // jeda biar video yang lagi buffer nggak keganggu
       }
     }
     backgroundBuildDone = true;
@@ -559,7 +567,7 @@
         unloadVideo(video);
       }
     });
-  }, { rootMargin: '150% 0px 150% 0px', threshold: 0 });
+  }, { rootMargin: '100% 0px 100% 0px', threshold: 0 });
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
