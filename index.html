@@ -408,7 +408,7 @@
     const src = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${CONFIG.API_KEY}`;
 
     slide.innerHTML = `
-      <video src="${src}" loop muted playsinline preload="metadata"></video>
+      <video data-src="${src}" loop muted playsinline preload="none"></video>
       <div class="tap-zone"></div>
       <div class="heart-pop">❤️</div>
       
@@ -486,12 +486,42 @@
     video.addEventListener('error', () => {
        console.log("Video gagal dimuat, slide dilewati:", file.id);
        observer.unobserve(slide);
+       preloadObserver.unobserve(slide);
        slide.remove();
     });
 
     feedEl.appendChild(slide);
     observer.observe(slide);
+    preloadObserver.observe(slide);
   }
+
+  // Load/unload src video hanya untuk slide aktif + 1 slide di sekitarnya,
+  // supaya nggak semua video ke-request sekaligus (hemat bandwidth & API quota)
+  function loadVideo(video) {
+    if (!video.src && video.dataset.src) {
+      video.src = video.dataset.src;
+      video.load();
+    }
+  }
+  function unloadVideo(video) {
+    if (video.src) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    }
+  }
+
+  const preloadObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const video = entry.target.querySelector('video');
+      if (!video) return;
+      if (entry.isIntersecting) {
+        loadVideo(video);
+      } else {
+        unloadVideo(video);
+      }
+    });
+  }, { rootMargin: '100% 0px 100% 0px', threshold: 0 });
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
