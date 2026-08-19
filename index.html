@@ -284,6 +284,7 @@
   let videoQueue = [];             // antrian video yang sudah diacak, siap ditampilkan
   let backgroundBuildDone = false; // apakah semua folder sudah selesai di-scan
   let firstBatchRendered = false;  // apakah batch pertama sudah ditampilkan
+  let lastFetchError = null;       // pesan error asli terakhir dari Drive API (buat debug)
 
   function showStatus(html) {
     statusEl.classList.remove('hidden');
@@ -427,6 +428,7 @@
         }
       } catch (err) {
         console.error("Batch folder dilewati karena error:", batches[i], err);
+        lastFetchError = err.message || String(err);
       }
       if (i < batches.length - 1) {
         await delay(700); // jeda biar video yang lagi buffer nggak keganggu
@@ -435,7 +437,8 @@
     backgroundBuildDone = true;
 
     if (videoQueue.length === 0 && !firstBatchRendered) {
-      showStatus('⚠️ Tidak ada video ditemukan di folder yang dikonfigurasi.');
+      const detail = lastFetchError ? `<br><small style="opacity:.7">Detail: ${escapeHtml(lastFetchError)}</small>` : '';
+      showStatus('⚠️ Tidak ada video ditemukan di folder yang dikonfigurasi.' + detail);
       allLoaded = true;
     }
   }
