@@ -15,5 +15,5 @@ const CONFIG = {
   ],
 
   // Jumlah video yang diambil per load
-  PAGE_SIZE: 5,
+  PAGE_SIZE: 2,
 };
