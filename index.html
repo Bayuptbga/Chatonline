@@ -262,19 +262,16 @@
   const likedSet = new Set();
   let audioUnlocked = false; // true setelah user berinteraksi pertama kali (scroll/tap)
 
-  // Begitu user berinteraksi pertama kali, nyalakan suara video yang lagi aktif
+  // Begitu user berinteraksi pertama kali, nyalakan suara SEMUA video
+  // (yang sudah ada maupun yang akan dirender berikutnya)
   function unlockAudio() {
     if (audioUnlocked) return;
     audioUnlocked = true;
-    const activeVideo = feedEl.querySelector('.video-slide video');
     document.querySelectorAll('.video-slide').forEach((slide) => {
-      const rect = slide.getBoundingClientRect();
       const video = slide.querySelector('video');
       const muteBtn = slide.querySelector('.mute-btn');
-      if (video && rect.top < window.innerHeight * 0.6 && rect.bottom > window.innerHeight * 0.4) {
-        video.muted = false;
-        if (muteBtn) muteBtn.innerHTML = '🔊<span>Suara</span>';
-      }
+      if (video) video.muted = false;
+      if (muteBtn) muteBtn.innerHTML = '🔊<span>Suara</span>';
     });
   }
   feedEl.addEventListener('scroll', unlockAudio, { once: true, passive: true });
