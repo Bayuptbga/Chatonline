@@ -9,7 +9,7 @@ const CONFIG = {
   // Pastikan Anda memisahkan ID dengan tanda kutip dan koma
   FOLDER_IDS: [
     "1Zz47e3-ewXqt1y3qvEgBQWnug1LLt2fA", // Folder 1
-    // "ID_FOLDER_KEDUA_KAMU_DISINI",    // Folder 2 (hapus // untuk mengaktifkan)
+    "1PWzl2KhbNvd8sBKPH0BiQUKBhB2a1-Uw",    // Folder 2 (hapus // untuk mengaktifkan)
     // "ID_FOLDER_KETIGA_KAMU_DISINI"    // Folder 3
   ],
 
