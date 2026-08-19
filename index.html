@@ -44,9 +44,10 @@
     background: #000;
   }
 
+  /* Diubah: bottom dinaikkan agar tidak tertutup navbar */
   .overlay {
     position: absolute;
-    bottom: 0;
+    bottom: 60px; 
     left: 0;
     width: 100%;
     padding: 20px 80px 20px 20px;
@@ -56,7 +57,7 @@
     pointer-events: none;
   }
   
-  .video-info { margin-bottom: 20px; }
+  .video-info { margin-bottom: 10px; }
   .video-info h3 {
     font-size: 16px;
     margin-bottom: 8px;
@@ -71,10 +72,11 @@
     overflow: hidden;
   }
 
+  /* Diubah: bottom dinaikkan agar sejajar estetik dengan navbar */
   .side-actions {
     position: absolute;
     right: 12px;
-    bottom: 40px;
+    bottom: 80px; 
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -137,6 +139,85 @@
     text-shadow: 0 1px 4px rgba(0,0,0,0.6);
     pointer-events: none;
   }
+
+  /* NAVBAR BOTTOM TIKTOK STYLE */
+  #bottom-navbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background: #000;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 50;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .nav-item {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 10px;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    flex: 1;
+  }
+  .nav-item.active {
+    color: #fff;
+  }
+  .nav-icon {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+  }
+  
+  /* Ikon Plus Khas TikTok */
+  .nav-add-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+  }
+  .nav-add-btn {
+    width: 42px;
+    height: 28px;
+    background: #fff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+  }
+  .nav-add-btn::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: #20D5EC; /* Cyan TikTok */
+    left: -4px;
+    border-radius: 8px;
+    z-index: -1;
+  }
+  .nav-add-btn::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: #FE2C55; /* Merah TikTok */
+    right: -4px;
+    border-radius: 8px;
+    z-index: -2;
+  }
+  .nav-add-btn svg {
+    fill: #000;
+    width: 18px;
+    height: 18px;
+  }
   
   #status {
     position: fixed;
@@ -181,6 +262,31 @@
 
 <div id="topbar">DriveTok</div>
 <div id="feed"></div>
+
+<!-- BOTTOM NAVBAR -->
+<div id="bottom-navbar">
+  <div class="nav-item active">
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3L4 9v12h5v-7h6v7h5V9z"/></svg>
+    <span>Beranda</span>
+  </div>
+  <div class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+    <span>Teman</span>
+  </div>
+  <div class="nav-add-wrapper">
+    <div class="nav-add-btn">
+      <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+    </div>
+  </div>
+  <div class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+    <span>Kotak Masuk</span>
+  </div>
+  <div class="nav-item">
+    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+    <span>Profil</span>
+  </div>
+</div>
 
 <div id="status">
   <div>
@@ -317,7 +423,6 @@
     slide.className = 'video-slide';
     slide.dataset.fileId = file.id;
 
-    // KEMBALI KE EXPORT DOWNLOAD: Mengatasi error API alt=media yang sering memicu 403 / CORS
     const src = `https://drive.google.com/uc?export=download&id=${file.id}`;
 
     slide.innerHTML = `
