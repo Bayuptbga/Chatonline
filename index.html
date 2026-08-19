@@ -301,17 +301,31 @@
     return array;
   }
 
+  const folderNames = {}; // folderId -> nama folder (buat ditampilin sebagai @username)
+
+  async function getFolderName(folderId) {
+    try {
+      const params = new URLSearchParams({ fields: 'name', key: CONFIG.API_KEY });
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}?${params.toString()}`);
+      const data = await res.json();
+      if (data.name) folderNames[folderId] = data.name;
+    } catch (err) {
+      console.error("Gagal ambil nama folder:", folderId, err);
+    }
+  }
+
   async function discoverAllFolderIds(rootId) {
     const allIds = [rootId];
     const queue = [rootId];
     const MAX_FOLDERS = 150; 
+    await getFolderName(rootId);
     while (queue.length > 0 && allIds.length < MAX_FOLDERS) {
       const currentId = queue.shift();
       let pageToken = null;
       do {
         const params = new URLSearchParams({
           q: `'${currentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
-          fields: 'nextPageToken, files(id)',
+          fields: 'nextPageToken, files(id, name)',
           pageSize: '100',
           key: CONFIG.API_KEY,
         });
@@ -322,6 +336,7 @@
         (data.files || []).forEach((f) => {
           allIds.push(f.id);
           queue.push(f.id);
+          folderNames[f.id] = f.name;
         });
         pageToken = data.nextPageToken || null;
       } while (pageToken);
@@ -344,6 +359,8 @@
       const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params.toString()}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
+      // Tandai tiap file dengan folder asalnya, biar bisa ditampilkan sebagai @username
+      (data.files || []).forEach((f) => { f.parentFolderId = folderId; });
       files.push(...(data.files || []));
       pageToken = data.nextPageToken || null;
     } while (pageToken);
@@ -445,6 +462,12 @@
     const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
   }
 
+  function getFolderDisplayName(folderId) {
+    const name = folderNames[folderId];
+    if (!name) return 'user_' + (folderId ? folderId.substring(0, 5).toLowerCase() : 'unknown');
+    return name.trim().replace(/\s+/g, '_').toLowerCase();
+  }
+
   function renderSlide(file) {
     const slide = document.createElement('div');
     slide.className = 'video-slide';
@@ -465,7 +488,7 @@
       
       <div class="overlay">
         <div class="video-info">
-          <h3>@user_${file.id.substring(0,5).toLowerCase()}</h3>
+          <h3>@${escapeHtml(getFolderDisplayName(file.parentFolderId))}</h3>
           <p>${escapeHtml(file.name)}</p>
         </div>
       </div>
