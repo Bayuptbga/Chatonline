@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>DriveTok v8 (5 Folders)</title>
+<title>DriveTok v9</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
@@ -274,7 +274,6 @@
     statusEl.classList.add('hidden');
   }
 
-  // ALGORITMA PENGACAKAN ARRAY (Fisher-Yates)
   function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -315,7 +314,6 @@
     if (loading || allLoaded) return;
     loading = true;
     
-    // TAHAP 1: PERSIAPKAN KOLAM FOLDER
     if (!foldersDiscovered) {
       showStatus('Menyiapkan algoritma Beranda (FYP)...');
       let rootIds = [];
@@ -352,7 +350,6 @@
       return;
     }
 
-    // TAHAP 2: ALGORITMA FYP (Pilih Folder Secara Acak)
     const randomFolderIndex = Math.floor(Math.random() * activeFolders.length);
     const selectedFolderId = activeFolders[randomFolderIndex];
     const pageToken = folderTokens[selectedFolderId];
@@ -385,9 +382,7 @@
         return fetchVideoList(); 
       }
 
-      // TAHAP 3: ACAK SUSUNAN VIDEO YANG DITERIMA
       files = shuffleArray(files);
-
       hideStatus();
       files.forEach(renderSlide);
 
@@ -460,7 +455,12 @@
         }, 500);
       } else {
         setTimeout(() => {
-          if (currentTime === lastTap) { video.paused ? video.play() : video.pause(); }
+          if (currentTime === lastTap) { 
+            // Jika video adalah iframe, play/pause via JS tidak didukung
+            if(video.tagName.toLowerCase() === 'video') {
+                video.paused ? video.play() : video.pause(); 
+            }
+          }
         }, 300);
       }
       lastTap = currentTime;
@@ -474,11 +474,30 @@
         likedSet.add(file.id); likeBtn.innerHTML = '❤️<span>Suka</span>'; likeBtn.classList.add('liked'); 
       }
     });
+    
     muteBtn.addEventListener('click', () => {
-      video.muted = !video.muted; muteBtn.innerHTML = video.muted ? '🔇<span>Bisu</span>' : '🔊<span>Suara</span>';
+      if(video.tagName.toLowerCase() === 'video') {
+          video.muted = !video.muted; 
+          muteBtn.innerHTML = video.muted ? '🔇<span>Bisu</span>' : '🔊<span>Suara</span>';
+      }
     });
+
+    // SISTEM FALLBACK ANTI-ERROR (IFRAME)
     video.addEventListener('error', () => {
-       tapZone.innerHTML = `<div class="error-msg">⚠️ Gagal memutar video.<br>Pastikan file berformat MP4 dan ukuran tidak terlalu besar.</div>`;
+       console.log("Video murni gagal dimuat, beralih ke Mode Iframe (Plan B)...");
+       
+       // Hapus tag video yang error
+       video.remove();
+       
+       // Buat container iframe baru di posisi paling belakang (z-index 1)
+       const iframeContainer = document.createElement('div');
+       iframeContainer.style.cssText = "position: absolute; inset: 0; z-index: 1; pointer-events: none; width: 100%; height: 100%;";
+       
+       // Gunakan link preview bawaan google drive
+       iframeContainer.innerHTML = `<iframe src="https://drive.google.com/file/d/${file.id}/preview?autoplay=1" style="width:100%; height:100%; border:0;" allow="autoplay"></iframe>`;
+       
+       // Masukkan iframe ke dalam slide, tepat sebelum tapZone
+       slide.insertBefore(iframeContainer, tapZone);
     });
 
     feedEl.appendChild(slide);
