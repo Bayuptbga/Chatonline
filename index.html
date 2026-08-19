@@ -333,38 +333,6 @@
     return files;
   }
 
-  async function fetchVideoList() {
-    if (loading || allLoaded) return;
-    loading = true;
-    
-    if (!foldersDiscovered) {
-      showStatus('Menyiapkan algoritma Beranda (FYP)...');
-      let rootIds = [];
-      if (CONFIG.FOLDER_IDS && Array.isArray(CONFIG.FOLDER_IDS)) {
-        rootIds = rootIds.concat(CONFIG.FOLDER_IDS);
-      } else if (CONFIG.FOLDER_ID) {
-        rootIds.push(CONFIG.FOLDER_ID);
-      }
-
-      for (let i = 0; i < rootIds.length; i++) {
-        try {
-          const subfolders = await discoverAllFolderIds(rootIds[i]);
-          activeFolders = activeFolders.concat(subfolders);
-        } catch (err) {
-          console.error("Gagal menelusuri root folder:", rootIds[i], err);
-        }
-      }
-      
-      activeFolders = [...new Set(activeFolders)];
-      foldersDiscovered = true;
-      
-      if(activeFolders.length === 0) {
-         showStatus('⚠️ Gagal mendapatkan folder. Pastikan ID folder di config.js valid.');
-         loading = false;
-         return;
-      }
-    }
-
   function renderNextBatch() {
     const batchSize = CONFIG.PAGE_SIZE || 10;
     const batch = videoQueue.splice(0, batchSize);
