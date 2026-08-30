@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Frequency — di kanal</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="room">
+  <div class="room-header">
+    <div class="brand">FREQ<span>UENCY</span></div>
+    <div class="status-chip" id="statusChip">
+      <span class="dot-live"></span>
+      <span id="statusText">Menghubungkan…</span>
+      <span class="freq" id="freqText"></span>
+    </div>
+    <button class="skip-btn" id="skipBtn">Ganti Kanal ⟳</button>
+  </div>
+
+  <div class="room-body">
+    <div class="video-pane">
+      <div class="video-tile" id="remoteTile">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <div class="tag" id="remoteTag">menunggu…</div>
+      </div>
+      <div class="video-tile">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div class="tag">Kamu</div>
+      </div>
+    </div>
+
+    <div class="chat-pane">
+      <div class="chat-log" id="chatLog"></div>
+      <div class="typing-indicator" id="typingIndicator"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="Ketik pesan…" maxlength="500" />
+        <button id="sendBtn">Kirim</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="js/chat.js"></script>
+</body>
+</html>

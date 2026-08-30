@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Frequency — ngobrol acak dengan orang baru</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="landing">
+  <div class="grain"></div>
+
+  <div class="topbar">
+    <div class="mark">FREQ<span>UENCY</span></div>
+    <div><span class="dot-live"></span>ON AIR</div>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">RANDOM CHANNEL · VIDEO + TEXT</div>
+    <h1>Putar dial.<br />Temukan <span class="accent">frekuensi</span> asing.</h1>
+    <p class="sub">Terhubung sekilas dengan orang asing lewat video dan teks. Tanpa akun, tanpa histori. Pindah kanal kapan saja.</p>
+
+    <svg class="waveform" viewBox="0 0 700 60" preserveAspectRatio="none">
+      <path id="wave" d="" />
+    </svg>
+
+    <button class="dial-btn" onclick="window.location.href='chat.html'">Mulai Tuning →</button>
+
+    <div class="footnote">
+      18+ disarankan. Jangan bagikan info pribadi. Klik <strong>Ganti Kanal</strong> kapan saja untuk memutus dan mencari lawan bicara baru.
+    </div>
+  </div>
+
+  <div class="rules-strip">
+    <span>Tanpa rekaman disimpan di server</span>
+    <span>Laporkan perilaku buruk lewat tombol block</span>
+    <span>Kamera & mic diminta izinnya dulu</span>
+  </div>
+</div>
+
+<script>
+  // Draw a gentle animated oscilloscope-style waveform in the hero
+  const path = document.getElementById('wave');
+  let t = 0;
+  function draw() {
+    let d = 'M0,30 ';
+    for (let x = 0; x <= 700; x += 10) {
+      const y = 30 + Math.sin((x + t) * 0.045) * 14 * Math.sin(t * 0.01 + x * 0.002) + Math.sin((x+t)*0.01)*4;
+      d += `L${x},${y.toFixed(1)} `;
+    }
+    path.setAttribute('d', d);
+    t += 3;
+    requestAnimationFrame(draw);
+  }
+  draw();
+</script>
+</body>
+</html>
